@@ -3,12 +3,10 @@ from .start import router as start_router
 from .text_analysis import router as text_router
 from .callback import router as callback_router
 
-# Создаем главный роутер и включаем все остальные
 main_router = Router()
 main_router.include_router(start_router)
 main_router.include_router(text_router)
 main_router.include_router(callback_router)
 
-# Для удобного импорта
 router = main_router
 __all__ = ["router", "start_router", "text_router", "callback_router"]

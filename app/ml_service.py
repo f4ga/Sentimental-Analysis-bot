@@ -67,10 +67,6 @@ class SentimentAnalyzer:
         else:
             self.model_name = get_ml_model()
 
-        # УБЕРИТЕ ЭТОТ ПРИНТ И ХАРДКОД:
-        # print(f"✅ ЗАГРУЖАЕМ модель: {self.model_name}")
-
-        # Просто логируем
         logger.info(f"Загрузка модели: {self.model_name}")
         self._init_model()
 
@@ -175,13 +171,6 @@ def set_analyzer(model_name: str) -> SentimentAnalyzer:
     global _analyzer
     _analyzer = SentimentAnalyzer(model_name)
     return _analyzer
-
-
-# Устаревшие функции для обратной совместимости
-async def analyze_async(text: str) -> dict[str, object]:
-    """Асинхронный анализ тональности (для обратной совместимости)."""
-    analyzer = get_analyzer()
-    return analyzer.analyze(text)
 
 
 # Новая асинхронная версия с типизацией

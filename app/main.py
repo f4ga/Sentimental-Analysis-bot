@@ -58,7 +58,6 @@ class Stats:
                 self.neutral += 1
 
 
-# Инициализация
 stats = Stats()
 
 
@@ -66,7 +65,6 @@ stats = Stats()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Управляет жизненным циклом приложения."""
-    # Startup
     logger.info("Запуск Sentiment Analysis API...")
     try:
         analyzer = get_analyzer()
@@ -76,7 +74,6 @@ async def lifespan(app: FastAPI):
 
     yield
 
-    # Shutdown
     logger.info("Остановка API...")
 
 
@@ -107,17 +104,14 @@ async def predict(request: SentimentRequest) -> SentimentResponse:
     """Анализирует тональность текста.
 
     Returns:
-        Результат анализа с оценкой уверенности.
+        Результат анализа с оценкой точности.
     """
     try:
-        # Анализ текста
         analyzer = get_analyzer()
         result = analyzer.analyze(request.text)
 
-        # Обновление статистики
         stats.update(result["sentiment"])
 
-        # Логирование
         logger.info(f"Анализ для user_id={request.user_id}: {result['sentiment']}")
 
         return SentimentResponse(
@@ -155,7 +149,6 @@ async def get_stats() -> dict:
     }
 
 
-# Глобальный обработчик ошибок
 @app.exception_handler(Exception)
 async def handle_exceptions(request, exc):
     """Обрабатывает все необработанные исключения."""

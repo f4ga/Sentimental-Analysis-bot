@@ -1,21 +1,14 @@
-"""
-Конфигурация через os.getenv()
-Все значения берутся из .env файла
-"""
-
 import os
 from pathlib import Path
 from dotenv import load_dotenv
 
-# ЗАГРУЗКА .env ПЕРЕД ВСЕМИ ФУНКЦИЯМИ
-# Ищем .env в корне проекта (на уровень выше app/)
-project_root = Path(__file__).parent.parent  # core -> app -> easy-bot
+# Ищем .env в корне проекта
+project_root = Path(__file__).parent.parent
 env_path = project_root / ".env"
 
 if env_path.exists():
     load_dotenv(dotenv_path=env_path)
 else:
-    # Попробуем текущую директорию
     load_dotenv()
 
 

@@ -30,13 +30,14 @@ async def handle_text(message: types.Message) -> None:
         return
 
     try:
-        # Показываем статус обработки
-        status_msg = await message.answer("🔍 Анализирую текст...")
+        status_msg = await message.answer(
+            "🔍 Анализирую текст..."
+        )  # Статусное сообщение, потом удаляем
 
         # Анализ текста
         result = await analyze_text(text, message.from_user.id)
 
-        # Формируем ответ
+        # ответ
         sentiment_emojis = {
             "positive": "☀️ Позитивная",
             "negative": "⛈️ Негативная",
@@ -54,7 +55,7 @@ async def handle_text(message: types.Message) -> None:
             f"🎯 <b>Точность:</b> {result.confidence:.1%}\n\n"
         )
 
-        # Удаляем статусное сообщение и отправляем результат
+        # Статусное сообщение удаляется и отправляем ответ
         await status_msg.delete()
         await message.answer(
             response, reply_markup=get_sentiment_keyboard(), parse_mode="HTML"
@@ -63,7 +64,7 @@ async def handle_text(message: types.Message) -> None:
     except Exception as e:
         logger.error(f"Ошибка при анализе текста: {e}", exc_info=True)
 
-        # Удаляем статусное сообщение при ошибке
+        # статусное сообщение удаляется при ошибке
         if "status_msg" in locals():
             try:
                 await status_msg.delete()

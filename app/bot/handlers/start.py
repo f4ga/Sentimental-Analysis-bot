@@ -1,19 +1,13 @@
-"""
-Обработчики команд бота.
-"""
-
 from aiogram import Router, types
 from aiogram.filters import Command
 from bot.keyboards import get_main_keyboard
 import sys
 import os
 
-# Добавляем путь для импорта из core
 sys.path.append(
     os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 )
 
-# Импортируем настройки
 try:
     from core.config import get_admin_id, get_api_host, get_api_port
 
@@ -56,12 +50,10 @@ help_text = (
 
 @router.message(Command("start"))
 async def cmd_start(message: types.Message) -> None:
-    """Обработчик команды /start."""
 
     # Проверяем админа
     is_admin = message.from_user.id in ADMIN_IDS if ADMIN_IDS else False
 
-    # Приветствие с учетом прав
     greeting = f"Добро пожаловать, {message.from_user.first_name or 'друг'}! Я бот для анализа тональности текста."
 
     if is_admin:
@@ -69,14 +61,11 @@ async def cmd_start(message: types.Message) -> None:
 
     await message.answer(greeting, reply_markup=get_main_keyboard(), parse_mode="HTML")
 
-    # Дополнительное сообщение с инструкцией
-
     await message.answer(help_text, parse_mode="HTML")
 
 
 @router.message(Command("help"))
 async def cmd_help(message: types.Message) -> None:
-    """Обработчик команды /help."""
     await message.answer(help_text, parse_mode="HTML")
 
 

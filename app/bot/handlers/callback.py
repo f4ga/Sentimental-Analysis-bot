@@ -1,6 +1,5 @@
 from aiogram import Router, F, types
 from bot.services import fetch_stats
-from bot.keyboards import get_main_keyboard
 import logging
 from .start import help_text
 

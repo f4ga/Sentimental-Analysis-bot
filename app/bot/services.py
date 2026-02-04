@@ -28,7 +28,7 @@ class SentimentResult:
 
 @dataclass(frozen=True)
 class APIStats:
-    """Статистика API для удобного доступа."""
+    """Статистика API."""
 
     total_requests: int
     positive: int

@@ -7,7 +7,6 @@ from aiogram.types import (
 
 
 def get_main_keyboard() -> InlineKeyboardMarkup:
-    """Основная клавиатура для главного меню."""
 
     buttons = [
         [
@@ -66,22 +65,3 @@ def get_reply_keyboard() -> ReplyKeyboardMarkup:
         resize_keyboard=True,
         one_time_keyboard=False,
     )
-
-
-# # Клавиатура для выбора языка (пример использования t-строк)
-# def get_language_keyboard() -> InlineKeyboardMarkup:
-#     """Клавиатура для выбора языка анализа."""
-
-#     # В реальном проекте здесь можно использовать t-строки для локализации
-#     buttons = [
-#         [
-#             InlineKeyboardButton(text="🇷🇺 Русский", callback_data="lang_ru"),
-#             InlineKeyboardButton(text="🇺🇸 English", callback_data="lang_en"),
-#         ],
-#         [
-#             InlineKeyboardButton(text="🇩🇪 Deutsch", callback_data="lang_de"),
-#             InlineKeyboardButton(text="🇫🇷 Français", callback_data="lang_fr"),
-#         ],
-#     ]
-
-#     return InlineKeyboardMarkup(inline_keyboard=buttons)
