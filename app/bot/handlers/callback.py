@@ -1,5 +1,5 @@
 from aiogram import Router, F, types
-from bot.services import fetch_stats, get_user_history
+from bot.services import fetch_user_stats, get_user_history
 import logging
 from .start import help_text
 
@@ -13,18 +13,20 @@ async def show_stats(callback: types.CallbackQuery) -> None:
 
     await callback.answer("⏳ Загружаю статистику...")
 
+    user_id = callback.from_user.id
+
     try:
-        stats = await fetch_stats()
+        stats = await fetch_user_stats(user_id)
 
         # Форматирование статистики
         stats_template = """
-📊 <b>Статистика использования:</b>
+📊 <b>Ваша статистика использования:</b>
 
 • Всего запросов: {total}
 • Успешных: {successful}
 • Ошибок: {errors}
 
-<b>тональности запросов:</b>
+<b>Тональности ваших запросов:</b>
 ☀️ Позитивных: {positive} ({positive_percent:.1%})
 ⛈️ Негативных: {negative} ({negative_percent:.1%})
 ☁️ Нейтральных: {neutral} ({neutral_percent:.1%})
@@ -43,11 +45,11 @@ async def show_stats(callback: types.CallbackQuery) -> None:
             successful=successful,
             errors=errors,
             positive=stats.positive,
-            positive_percent=stats.positive / total_nonzero,
+            positive_percent=stats.positive / total_nonzero if total_nonzero > 0 else 0,
             negative=stats.negative,
-            negative_percent=stats.negative / total_nonzero,
+            negative_percent=stats.negative / total_nonzero if total_nonzero > 0 else 0,
             neutral=stats.neutral,
-            neutral_percent=stats.neutral / total_nonzero,
+            neutral_percent=stats.neutral / total_nonzero if total_nonzero > 0 else 0,
         )
 
         await callback.message.answer(response_text, parse_mode="HTML")

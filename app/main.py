@@ -10,6 +10,7 @@ import os
 from typing import Dict, Any
 from functools import wraps
 import time
+from collections import defaultdict
 
 from fastapi import FastAPI, HTTPException, status, Request
 from fastapi.responses import JSONResponse
@@ -27,21 +28,40 @@ request_counts: Dict[str, int] = {}
 last_reset = time.time()
 
 
+# Хранилище для пользовательской статистики
+user_stats: Dict[int, Dict[str, Any]] = defaultdict(
+    lambda: {
+        "total": 0,
+        "positive": 0,
+        "negative": 0,
+        "neutral": 0,
+        "start_time": datetime.now().isoformat(),
+    }
+)
+
+
 # Загрузка статистики из файла
 def load_stats():
     """Загружает статистику из файла при запуске."""
-    global stats
+    global user_stats
     try:
         if os.path.exists(STATS_FILE):
             with open(STATS_FILE, "r", encoding="utf-8") as f:
                 data = json.load(f)
-                stats.total = data.get("total", 0)
-                stats.positive = data.get("positive", 0)
-                stats.negative = data.get("negative", 0)
-                stats.neutral = data.get("neutral", 0)
-                stats.start_time = datetime.fromisoformat(
-                    data.get("start_time", datetime.now().isoformat())
-                )
+
+                # Загрузка пользовательской статистики
+                if "users" in data:
+                    for user_id, user_data in data["users"].items():
+                        user_stats[int(user_id)] = {
+                            "total": user_data.get("total", 0),
+                            "positive": user_data.get("positive", 0),
+                            "negative": user_data.get("negative", 0),
+                            "neutral": user_data.get("neutral", 0),
+                            "start_time": user_data.get(
+                                "start_time", datetime.now().isoformat()
+                            ),
+                        }
+
             logger.info("Статистика загружена из файла")
     except Exception as e:
         logger.error(f"Ошибка загрузки статистики: {e}")
@@ -51,13 +71,19 @@ def load_stats():
 def save_stats():
     """Сохраняет статистику в файл при завершении работы."""
     try:
-        data = {
-            "total": stats.total,
-            "positive": stats.positive,
-            "negative": stats.negative,
-            "neutral": stats.neutral,
-            "start_time": stats.start_time.isoformat(),
-        }
+        # Подготовка данных для сохранения (только пользовательская статистика)
+        data = {"users": {}}
+
+        # Добавляем пользовательскую статистику
+        for user_id, user_data in user_stats.items():
+            data["users"][str(user_id)] = {
+                "total": user_data["total"],
+                "positive": user_data["positive"],
+                "negative": user_data["negative"],
+                "neutral": user_data["neutral"],
+                "start_time": user_data["start_time"],
+            }
+
         with open(STATS_FILE, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
         logger.info("Статистика сохранена в файл")
@@ -120,44 +146,6 @@ class SentimentResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-# Статистика сервиса
-class Stats:
-    """Трекер статистики запросов."""
-
-    def __init__(self):
-        self.total = 0
-        self.positive = 0
-        self.negative = 0
-        self.neutral = 0
-        self.start_time = datetime.now()
-
-    def update(self, sentiment: str) -> None:
-        """Обновляет статистику по результату."""
-        self.total += 1
-
-        match sentiment:
-            case "positive":
-                self.positive += 1
-            case "negative":
-                self.negative += 1
-            case "neutral":
-                self.neutral += 1
-
-    def to_dict(self) -> Dict[str, Any]:
-        """Преобразует статистику в словарь."""
-        uptime = datetime.now() - self.start_time
-        return {
-            "total_requests": self.total,
-            "positive": self.positive,
-            "negative": self.negative,
-            "neutral": self.neutral,
-            "uptime_seconds": uptime.total_seconds(),
-        }
-
-
-stats = Stats()
-
-
 # Управление жизненным циклом
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -197,7 +185,7 @@ async def root() -> dict:
         "endpoints": {
             "POST /predict": "Анализ тональности",
             "GET /health": "Проверка здоровья",
-            "GET /stats": "Статистика",
+            "GET /stats/{user_id}": "Статистика пользователя",
         },
     }
 
@@ -214,7 +202,16 @@ async def predict(request: SentimentRequest) -> SentimentResponse:
         analyzer = get_analyzer()
         result = analyzer.analyze(request.text)
 
-        stats.update(result["sentiment"])
+        # Обновляем пользовательскую статистику, если указан user_id
+        if request.user_id is not None:
+            user_stats[request.user_id]["total"] += 1
+            match result["sentiment"]:
+                case "positive":
+                    user_stats[request.user_id]["positive"] += 1
+                case "negative":
+                    user_stats[request.user_id]["negative"] += 1
+                case "neutral":
+                    user_stats[request.user_id]["neutral"] += 1
 
         logger.info(f"Анализ для user_id={request.user_id}: {result['sentiment']}")
 
@@ -239,10 +236,31 @@ async def health() -> dict:
     return {"status": "healthy", "timestamp": datetime.now().isoformat()}
 
 
-@app.get("/stats")
-async def get_stats() -> dict:
-    """Возвращает статистику использования."""
-    return stats.to_dict()
+@app.get("/stats/{user_id}")
+async def get_user_stats(user_id: int) -> dict:
+    """Возвращает статистику использования для конкретного пользователя."""
+    user_stat = user_stats.get(
+        user_id,
+        {
+            "total": 0,
+            "positive": 0,
+            "negative": 0,
+            "neutral": 0,
+            "start_time": datetime.now().isoformat(),
+        },
+    )
+
+    # Вычисляем uptime
+    start_time = datetime.fromisoformat(user_stat["start_time"])
+    uptime = datetime.now() - start_time
+
+    return {
+        "total_requests": user_stat["total"],
+        "positive": user_stat["positive"],
+        "negative": user_stat["negative"],
+        "neutral": user_stat["neutral"],
+        "uptime_seconds": uptime.total_seconds(),
+    }
 
 
 @app.exception_handler(Exception)

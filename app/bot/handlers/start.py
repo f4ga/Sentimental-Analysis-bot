@@ -135,20 +135,22 @@ async def cmd_history(message: types.Message) -> None:
 @router.message(Command("stats"))
 async def cmd_stats(message: types.Message) -> None:
     """Команда для получения статистики использования."""
-    from bot.services import fetch_stats
+    from bot.services import fetch_user_stats
+
+    user_id = message.from_user.id
 
     try:
-        stats = await fetch_stats()
+        stats = await fetch_user_stats(user_id)
 
         # Форматирование статистики
         stats_template = """
-📊 <b>Статистика использования:</b>
+📊 <b>Ваша статистика использования:</b>
 
 • Всего запросов: {total}
 • Успешных: {successful}
 • Ошибок: {errors}
 
-<b>Тональности запросов:</b>
+<b>Тональности ваших запросов:</b>
 ☀️ Позитивных: {positive} ({positive_percent:.1%})
 ⛈️ Негативных: {negative} ({negative_percent:.1%})
 ☁️ Нейтральных: {neutral} ({neutral_percent:.1%})
@@ -167,11 +169,11 @@ async def cmd_stats(message: types.Message) -> None:
             successful=successful,
             errors=errors,
             positive=stats.positive,
-            positive_percent=stats.positive / total_nonzero,
+            positive_percent=stats.positive / total_nonzero if total_nonzero > 0 else 0,
             negative=stats.negative,
-            negative_percent=stats.negative / total_nonzero,
+            negative_percent=stats.negative / total_nonzero if total_nonzero > 0 else 0,
             neutral=stats.neutral,
-            neutral_percent=stats.neutral / total_nonzero,
+            neutral_percent=stats.neutral / total_nonzero if total_nonzero > 0 else 0,
         )
 
         await message.answer(response_text, parse_mode="HTML")

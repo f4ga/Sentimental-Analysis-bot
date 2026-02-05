@@ -137,11 +137,13 @@ async def analyze_text(text: str, user_id: int | None = None) -> SentimentResult
             return None
 
 
-async def fetch_stats() -> APIStats:
-    """Получает статистику с API."""
+async def fetch_user_stats(user_id: int) -> APIStats:
+    """Получает статистику с API для конкретного пользователя."""
     async with aiohttp.ClientSession() as session:
         try:
-            async with session.get(f"{API_BASE}/stats", timeout=5) as response:
+            async with session.get(
+                f"{API_BASE}/stats/{user_id}", timeout=5
+            ) as response:
                 if response.status == 200:
                     data = await response.json()
                     return APIStats(
