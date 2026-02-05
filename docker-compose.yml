@@ -8,24 +8,38 @@ services:
       - "8000:8000"
     environment:
       - PYTHONPATH=/app
+      - ML_MODEL_NAME=${ML_MODEL_NAME:-cointegrated/rubert-tiny-sentiment-balanced}
     volumes:
       - ./app:/app
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:8000/health" ]
       interval: 30s
       timeout: 10s
       retries: 3
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '1.0'
 
   bot:
     build: ./app
     container_name: sentiment-bot
     environment:
       - BOT_TOKEN=${BOT_TOKEN}
+      - ADMIN_ID=${ADMIN_ID}
       - API_HOST=api
       - API_PORT=8000
       - PYTHONPATH=/app
     depends_on:
       api:
         condition: service_healthy
+    command: python -m app.bot.bot
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'

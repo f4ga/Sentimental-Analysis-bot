@@ -1,5 +1,5 @@
 from aiogram import Router, F, types
-from bot.services import fetch_stats
+from bot.services import fetch_stats, get_user_history
 import logging
 from .start import help_text
 
@@ -87,18 +87,62 @@ async def more_analysis(callback: types.CallbackQuery) -> None:
 
 @router.callback_query(F.data == "history")
 async def show_history(callback: types.CallbackQuery) -> None:
-    """Показать историю запросов (заглушка)."""
+    """Показать историю запросов пользователя."""
 
-    # В реальном проекте здесь была бы работа с БД
-    await callback.message.answer(
-        "📋 <b>История запросов</b>\n\n"
-        "В этой версии истории запросов нет. \n"
-        "Скоро разработчик добавит базу данных!\n\n"
-        "Используйте команду для статистики /stats , \n"
-        "(пока работает только в текущей сессии).",
-        parse_mode="HTML",
-    )
-    await callback.answer()
+    user_id = callback.from_user.id
+    await callback.answer("⏳ Загружаю историю запросов...")
+
+    try:
+        # Получаем историю пользователя
+        history = get_user_history(user_id)
+
+        if not history:
+            await callback.message.answer(
+                "📋 <b>История запросов</b>\n\n"
+                "У вас пока нет истории запросов.\n"
+                "Отправьте текст для анализа, чтобы начать.",
+                parse_mode="HTML",
+            )
+            return
+
+        # Форматируем историю
+        history_text = "📋 <b>История ваших запросов:</b>\n\n"
+
+        # Отображаем последние 10 запросов
+        for i, record in enumerate(reversed(history[-10:]), 1):
+            result = record["result"]
+            timestamp = record["timestamp"][:19].replace("T", " ")
+
+            # Определяем эмодзи для тональности
+            sentiment_emojis = {
+                "positive": "☀️",
+                "negative": "⛈️",
+                "neutral": "☁️",
+            }
+            emoji = sentiment_emojis.get(result["sentiment"], "⚪")
+
+            # Сокращаем текст для отображения
+            display_text = (
+                result["text"][:50] + "..."
+                if len(result["text"]) > 50
+                else result["text"]
+            )
+
+            history_text += f"{i}. {emoji} {display_text}\n"
+            history_text += (
+                f"   Уверенность: {result['confidence']:.1%} | {timestamp}\n\n"
+            )
+
+        history_text += "<i>Показаны последние 10 запросов</i>"
+
+        await callback.message.answer(history_text, parse_mode="HTML")
+
+    except Exception as e:
+        logger.error(f"Ошибка при получении истории: {e}")
+        await callback.message.answer(
+            "❌ <b>Не удалось загрузить историю запросов</b>\n" "Попробуйте позже.",
+            parse_mode="HTML",
+        )
 
 
 @router.callback_query(F.data == "settings")
