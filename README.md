@@ -96,12 +96,6 @@ easy-bot/
 4. ✅ Проверьте интернет-соединение
 5. ✅ Убедитесь, что все зависимости установлены
 
-## ⭐ Поддержка проекта
-Если проект оказался полезным, поставьте звезду на GitHub! Это помогает проекту развиваться.
-
-[![GitHub Stars](https://img.shields.io/github/stars/your-username/easy-bot?style=social)](https://github.com/your-username/easy-bot)
-[![Telegram Bot](https://img.shields.io/badge/Telegram-@YourBot-blue)](https://t.me/your_bot_username)
-
 ---
 
 ## **Готово к работе!** 
