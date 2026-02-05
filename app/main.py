@@ -1,5 +1,9 @@
 """
-FastAPI сервис для анализа тональности.
+FastAPI сервис для анализа тональности текста.
+
+Предоставляет REST API для анализа эмоциональной окраски текста
+с использованием машинного обучения. Включает функциональность
+для отслеживания статистики и ограничения частоты запросов.
 """
 
 from contextlib import asynccontextmanager
@@ -129,14 +133,21 @@ def rate_limit(max_requests: int = 100, window: int = 60):
 
 # Типы запросов/ответов
 class SentimentRequest(BaseModel):
-    """Запрос на анализ тональности."""
+    """Запрос на анализ тональности текста.
+
+    Модель данных для запроса анализа тональности, включает
+    текст для анализа и идентификатор пользователя.
+    """
 
     text: str = Field(..., min_length=1, max_length=5000)
     user_id: int | None = Field(None, alias="userId")
 
 
 class SentimentResponse(BaseModel):
-    """Ответ с результатом анализа."""
+    """Ответ с результатом анализа тональности.
+
+    Модель данных для ответа с результатами анализа тональности текста.
+    """
 
     text: str
     sentiment: str  # 'positive' | 'negative' | 'neutral'
@@ -149,7 +160,11 @@ class SentimentResponse(BaseModel):
 # Управление жизненным циклом
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Управляет жизненным циклом приложения."""
+    """Управляет жизненным циклом приложения.
+
+    Выполняет инициализацию при запуске и финализацию при остановке
+    приложения. Включает загрузку статистики и инициализацию ML-модели.
+    """
     logger.info("Запуск Sentiment Analysis API...")
 
     # Загружаем статистику из файла
@@ -175,7 +190,14 @@ app = FastAPI(title="Sentiment Analysis API", version="2.0.0", lifespan=lifespan
 # Эндпоинты
 @app.get("/")
 async def root() -> dict:
-    """Корневой эндпоинт с информацией о сервисе."""
+    """Корневой эндпоинт с информацией о сервисе.
+
+    Возвращает базовую информацию о сервисе, включая версию,
+    используемую модель и доступные эндпоинты.
+
+    Returns:
+        dict: Информация о сервисе.
+    """
     analyzer = get_analyzer()
 
     return {
@@ -195,8 +217,17 @@ async def root() -> dict:
 async def predict(request: SentimentRequest) -> SentimentResponse:
     """Анализирует тональность текста.
 
+    Принимает текст для анализа тональности и возвращает результат
+    с оценкой точности. Включает ограничение частоты запросов.
+
+    Args:
+        request (SentimentRequest): Запрос с текстом для анализа.
+
     Returns:
-        Результат анализа с оценкой точности.
+        SentimentResponse: Результат анализа с оценкой точности.
+
+    Raises:
+        HTTPException: При ошибке анализа текста.
     """
     try:
         analyzer = get_analyzer()
@@ -232,13 +263,30 @@ async def predict(request: SentimentRequest) -> SentimentResponse:
 
 @app.get("/health")
 async def health() -> dict:
-    """Проверяет работоспособность сервиса."""
+    """Проверяет работоспособность сервиса.
+
+    Возвращает статус сервиса и временную метку для мониторинга.
+
+    Returns:
+        dict: Статус сервиса и временная метка.
+    """
     return {"status": "healthy", "timestamp": datetime.now().isoformat()}
 
 
 @app.get("/stats/{user_id}")
 async def get_user_stats(user_id: int) -> dict:
-    """Возвращает статистику использования для конкретного пользователя."""
+    """Возвращает статистику использования для конкретного пользователя.
+
+    Собирает и возвращает статистику использования сервиса
+    для указанного пользователя, включая количество запросов
+    и распределение по тональностям.
+
+    Args:
+        user_id (int): Идентификатор пользователя.
+
+    Returns:
+        dict: Статистика использования для пользователя.
+    """
     user_stat = user_stats.get(
         user_id,
         {
@@ -265,7 +313,18 @@ async def get_user_stats(user_id: int) -> dict:
 
 @app.exception_handler(Exception)
 async def handle_exceptions(request, exc):
-    """Обрабатывает все необработанные исключения."""
+    """Обрабатывает все необработанные исключения.
+
+    Перехватывает все необработанные исключения и возвращает
+    стандартный ответ об ошибке.
+
+    Args:
+        request: Объект запроса.
+        exc: Объект исключения.
+
+    Returns:
+        JSONResponse: Стандартный ответ об ошибке.
+    """
     logger.error(f"Необработанная ошибка: {exc}")
 
     return JSONResponse(
@@ -276,7 +335,18 @@ async def handle_exceptions(request, exc):
 
 @app.exception_handler(429)
 async def rate_limit_exception_handler(request, exc):
-    """Обработчик ошибок rate limiting."""
+    """Обработчик ошибок rate limiting.
+
+    Перехватывает ошибки превышения лимита запросов и возвращает
+    соответствующий ответ.
+
+    Args:
+        request: Объект запроса.
+        exc: Объект исключения.
+
+    Returns:
+        JSONResponse: Ответ о превышении лимита запросов.
+    """
     return JSONResponse(
         status_code=429,
         content={"detail": "Превышен лимит запросов. Попробуйте позже."},

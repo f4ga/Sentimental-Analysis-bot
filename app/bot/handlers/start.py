@@ -192,4 +192,4 @@ async def cmd_stats(message: types.Message) -> None:
 
 @router.message(Command("about"))
 async def cmd_about(message: types.Message) -> None:
-    await message.answer("Этот бот создан @ebbsy")
+    await message.answer("Этот бот создан @ebssy")

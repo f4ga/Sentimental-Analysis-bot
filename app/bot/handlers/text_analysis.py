@@ -3,6 +3,20 @@ from bot.services import analyze_text
 from bot.keyboards import get_sentiment_keyboard
 import logging
 
+
+async def send_error_message(message: types.Message) -> None:
+    """Отправляет стандартное сообщение об ошибке."""
+    await message.answer(
+        "❌ <b>Произошла ошибка при анализе текста</b>\n\n"
+        "Возможные причины:\n"
+        "• Сервис временно недоступен\n"
+        "• Проблемы с сетью\n"
+        "• Технические работы\n\n"
+        "Попробуйте еще раз через несколько минут.",
+        parse_mode="HTML",
+    )
+
+
 router = Router()
 logger = logging.getLogger(__name__)
 
@@ -36,6 +50,14 @@ async def handle_text(message: types.Message) -> None:
 
         # Анализ текста
         result = await analyze_text(text, message.from_user.id)
+
+        # Проверяем, что результат не None
+        if result is None:
+            # Удаляем статусное сообщение
+            await status_msg.delete()
+
+            await send_error_message(message)
+            return
 
         # ответ
         sentiment_emojis = {
@@ -71,12 +93,4 @@ async def handle_text(message: types.Message) -> None:
             except:
                 pass
 
-        await message.answer(
-            "❌ <b>Произошла ошибка при анализе текста</b>\n\n"
-            "Возможные причины:\n"
-            "• Сервис временно недоступен\n"
-            "• Проблемы с сетью\n"
-            "• Технические работы\n\n"
-            "Попробуйте еще раз через несколько минут.",
-            parse_mode="HTML",
-        )
+        await send_error_message(message)

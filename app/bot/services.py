@@ -1,5 +1,9 @@
 """
 Сервис бота для работы с API.
+
+Предоставляет функциональность для взаимодействия с FastAPI сервисом
+анализа тональности, включая кэширование результатов и хранение
+истории запросов пользователей.
 """
 
 import aiohttp
@@ -7,7 +11,7 @@ import os
 import logging
 from datetime import datetime
 from dataclasses import dataclass
-from typing import Dict, List, Optional
+from typing import Dict, List
 import json
 
 logger = logging.getLogger(__name__)
@@ -28,7 +32,11 @@ history_limit = 50  # Максимальное количество записе
 
 @dataclass(frozen=True)
 class SentimentResult:
-    """Результат анализа тональности."""
+    """Результат анализа тональности.
+
+    Типизированный результат анализа тональности текста,
+    включающий текст, тональность, уверенность и временную метку.
+    """
 
     text: str
     sentiment: str
@@ -38,7 +46,11 @@ class SentimentResult:
 
 @dataclass(frozen=True)
 class APIStats:
-    """Статистика API."""
+    """Статистика API.
+
+    Типизированная статистика использования API, включающая
+    количество запросов, распределение по тональностям и uptime.
+    """
 
     total_requests: int
     positive: int
@@ -48,7 +60,7 @@ class APIStats:
 
 
 def _add_to_cache(text: str, result: dict) -> None:
-    """Добавляет результат в кэш."""
+    """Добавляет результат в кэш с ограничением по размеру."""
     if len(result_cache) >= cache_limit:
         # Удаляем самую старую запись
         oldest_key = next(iter(result_cache))
@@ -57,13 +69,13 @@ def _add_to_cache(text: str, result: dict) -> None:
     result_cache[text] = result
 
 
-def _get_from_cache(text: str) -> Optional[dict]:
+def _get_from_cache(text: str) -> dict | None:
     """Получает результат из кэша."""
     return result_cache.get(text)
 
 
 def _add_to_history(user_id: int, result: dict) -> None:
-    """Добавляет результат в историю пользователя."""
+    """Добавляет результат в историю пользователя с ограничением по размеру."""
     if user_id not in user_histories:
         user_histories[user_id] = []
 
@@ -82,11 +94,7 @@ def get_user_history(user_id: int) -> List[dict]:
 
 
 async def analyze_text(text: str, user_id: int | None = None) -> SentimentResult | None:
-    """Анализирует текст через API.
-
-    Returns:
-        SentimentResult или None при ошибке.
-    """
+    """Анализирует текст через API с кэшированием и сохранением истории."""
     # Проверяем кэш
     cached_result = _get_from_cache(text)
     if cached_result:

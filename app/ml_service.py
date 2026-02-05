@@ -1,13 +1,16 @@
 """
-сервис анализа тональности на основе RuBERT.
+Сервис анализа тональности текста на основе RuBERT.
+
+Данный модуль предоставляет функциональность для анализа эмоциональной
+окраски текста с использованием предобученной модели RuBERT. Включает
+в себя поддержку определения иронии и кэширования результатов.
 """
 
-from dataclasses import dataclass, asdict
-from typing import Literal, Dict, List
+from dataclasses import dataclass
+from typing import Literal, List
 import logging
-from functools import lru_cache
 import hashlib
-import json
+import threading
 
 from transformers import pipeline
 
@@ -35,16 +38,18 @@ class SentimentResult:
 
 
 class SentimentAnalyzer:
-    """Анализ тональности с поддержкой иронии."""
+    """Анализатор тональности текста с поддержкой определения иронии.
+
+    Использует предобученную модель RuBERT для анализа эмоциональной
+    окраски текста. Включает функциональность для определения иронии
+    и кэширования результатов анализа.
+    """
 
     # модель возвращает: POSITIVE, NEGATIVE, NEUTRAL
     _LABEL_MAP = {
         "POSITIVE": "positive",
         "NEGATIVE": "negative",
         "NEUTRAL": "neutral",
-        "positive": "positive",
-        "negative": "negative",
-        "neutral": "neutral",
     }
 
     # Ключевые фразы для детекции иронии
@@ -58,13 +63,19 @@ class SentimentAnalyzer:
         "само собой",
         "разумеется",
         "естественно",
-        "что может быть лучше",
-        "просто замечательно",
-        "как хорошо",
+        "ну ты и молодец",
+        "спасибо, конечно",
+        "ну да, ну да",
+        "",
     }
 
     def __init__(self, model_name: str | None = None):
-        """Инициализация анализатора."""
+        """Инициализирует анализатор тональности.
+
+        Args:
+            model_name (str, optional): Название модели для анализа тональности.
+                                         Если не указано, используется модель по умолчанию.
+        """
         if model_name:
             self.model_name = model_name
         else:
@@ -72,6 +83,10 @@ class SentimentAnalyzer:
 
         self.classifier = None
         logger.info(f"Загрузка модели: {self.model_name}")
+
+        # Инициализация кэша
+        self._cache = {}
+        self._cache_lock = threading.Lock()
 
     def _init_model(self) -> None:
         """Ленивая инициализация пайплайна модели."""
@@ -96,15 +111,24 @@ class SentimentAnalyzer:
     def analyze(self, text: str) -> dict[str, object]:
         """Анализирует тональность текста.
 
+        Выполняет анализ эмоциональной окраски текста с использованием
+        предобученной модели. Включает определение иронии и кэширование
+        результатов для повышения производительности.
+
         Args:
-            text: Текст для анализа.
+            text (str): Текст для анализа тональности. Не должен быть пустым.
 
         Returns:
-            Словарь с результатами анализа (для обратной совместимости).
+            dict[str, object]: Словарь с результатами анализа, содержащий:
+                - text (str): Исходный текст
+                - sentiment (str): Тональность ("positive", "negative", "neutral")
+                - confidence (float): Уверенность в результате (0.0 - 1.0)
+                - irony_detected (bool): Была ли обнаружена ирония
+                - model_used (str): Использованная модель
 
         Raises:
-            ValueError: Если текст пустой.
-            RuntimeError: Если произошла ошибка анализа.
+            ValueError: Если текст пустой или состоит только из пробелов.
+            RuntimeError: Если произошла ошибка во время анализа модели.
         """
         if not text or not text.strip():
             raise ValueError("Текст не может быть пустым")
@@ -133,7 +157,19 @@ class SentimentAnalyzer:
             raise RuntimeError("Ошибка анализа тональности") from e
 
     def _analyze_with_model(self, text: str, irony_detected: bool) -> SentimentResult:
-        """Основной анализ с помощью модели."""
+        """Основной анализ текста с помощью модели.
+
+        Выполняет анализ тональности текста с использованием предобученной
+        модели. Для длинных текстов (>2000 символов) использует специальный
+        метод анализа частями.
+
+        Args:
+            text (str): Текст для анализа.
+            irony_detected (bool): Флаг обнаруженной иронии.
+
+        Returns:
+            SentimentResult: Результат анализа тональности.
+        """
         # Ленивая инициализация модели
         self._init_model()
 
@@ -163,7 +199,18 @@ class SentimentAnalyzer:
         )
 
     def _analyze_long_text(self, text: str, irony_detected: bool) -> SentimentResult:
-        """Анализ длинных текстов путем разбиения на части."""
+        """Анализ длинных текстов путем разбиения на части.
+
+        Для текстов длиннее 2000 символов разбивает текст на предложения
+        и анализирует каждую часть отдельно, затем агрегирует результаты.
+
+        Args:
+            text (str): Длинный текст для анализа.
+            irony_detected (bool): Флаг обнаруженной иронии.
+
+        Returns:
+            SentimentResult: Агрегированный результат анализа.
+        """
         # Разбиваем текст на части по предложениям
         sentences = self._split_sentences(text)
 
@@ -214,7 +261,17 @@ class SentimentAnalyzer:
         )
 
     def _split_sentences(self, text: str) -> List[str]:
-        """Простое разбиение текста на предложения."""
+        """Простое разбиение текста на предложения.
+
+        Разбивает текст на предложения по точкам, восклицательным
+        и вопросительным знакам.
+
+        Args:
+            text (str): Текст для разбиения.
+
+        Returns:
+            List[str]: Список предложений.
+        """
         # Разбиваем по точкам, восклицательным и вопросительным знакам
         sentences = []
         current_sentence = ""
@@ -234,31 +291,49 @@ class SentimentAnalyzer:
     def _detect_irony(self, text: str) -> bool:
         """Обнаруживает иронию в тексте."""
         text_lower = text.lower()
-
-        # Быстрая проверка по ключевым фразам
         return any(phrase in text_lower for phrase in self._IRONY_PHRASES)
 
     def _get_cache_key(self, text: str) -> str:
-        """Генерирует ключ для кэширования."""
+        """Генерирует ключ для кэширования.
+
+        Использует MD5 хэш от текста для создания уникального ключа.
+
+        Args:
+            text (str): Текст для генерации ключа.
+
+        Returns:
+            str: Уникальный ключ для кэширования.
+        """
         return hashlib.md5(text.encode("utf-8")).hexdigest()
 
-    def _get_from_cache(self, key: str) -> dict | None:
-        """Получает результат из кэша."""
-        # В реальной реализации здесь будет кэш
-        return None
+    def _get_from_cache(self, cache_key: str) -> dict | None:
+        """Получает результат из кэша по ключу."""
+        with self._cache_lock:
+            return self._cache.get(cache_key)
 
-    def _save_to_cache(self, key: str, result: dict) -> None:
+    def _save_to_cache(self, cache_key: str, result: dict) -> None:
         """Сохраняет результат в кэш."""
-        # В реальной реализации здесь будет кэш
-        pass
+        with self._cache_lock:
+            # Ограничиваем размер кэша
+            if len(self._cache) >= 1000:
+                # Удаляем самый старый элемент
+                oldest_key = next(iter(self._cache))
+                del self._cache[oldest_key]
+            self._cache[cache_key] = result
 
 
-# Современный синглтон с типизацией
 _analyzer: SentimentAnalyzer | None = None
 
 
 def get_analyzer() -> SentimentAnalyzer:
-    """Возвращает или создаёт экземпляр анализатора."""
+    """Возвращает или создаёт экземпляр анализатора.
+
+    Использует singleton паттерн для обеспечения единственного
+    экземпляра анализатора во всем приложении.
+
+    Returns:
+        SentimentAnalyzer: Экземпляр анализатора тональности.
+    """
     global _analyzer
     if _analyzer is None:
         _analyzer = SentimentAnalyzer()
@@ -268,16 +343,31 @@ def get_analyzer() -> SentimentAnalyzer:
 def set_analyzer(model_name: str) -> SentimentAnalyzer:
     """Устанавливает новую модель анализатора.
 
+    Создает новый экземпляр анализатора с указанной моделью
+    и заменяет текущий singleton экземпляр.
+
+    Args:
+        model_name (str): Название новой модели для анализа тональности.
+
     Returns:
-        Новый экземпляр анализатора.
+        SentimentAnalyzer: Новый экземпляр анализатора.
     """
     global _analyzer
     _analyzer = SentimentAnalyzer(model_name)
     return _analyzer
 
 
-# Новая асинхронная версия с типизацией
 async def analyze_async_result(text: str) -> SentimentResult:
-    """Асинхронный анализ тональности с возвратом типизированного результата."""
+    """Анализ тональности с возвратом типизированного результата.
+
+    Асинхронная функция для анализа тональности текста с возвратом
+    результата в виде типизированного объекта SentimentResult.
+
+    Args:
+        text (str): Текст для анализа тональности.
+
+    Returns:
+        SentimentResult: Результат анализа тональности.
+    """
     analyzer = get_analyzer()
     return analyzer._analyze_with_model(text, analyzer._detect_irony(text))
