@@ -53,3 +53,4 @@ docker-compose.override.yml
 *.temp
 *~
 ~*
+stats.json
